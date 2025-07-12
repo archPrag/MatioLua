@@ -113,7 +113,7 @@ void writeMAT(char*variableName,char*matName,double*matrix,size_t*size,int dimen
 
 
 
-tensor readMat(char*fileName,char*varName){
+tensor readMat(const char*fileName,const char*varName){
 	mat_t*matfp=Mat_Open(fileName,MAT_ACC_RDONLY);
 	matvar_t* matvar=Mat_VarRead(matfp,varName);
 	tensor data;
@@ -128,8 +128,8 @@ tensor readMat(char*fileName,char*varName){
 	return data;
 }
 static int lua_readMatio(lua_State*L){
-	char*fileName=luaL_checkstring(L,1);
-	char*varName=luaL_checkstring(L,2);
+	const char*fileName=luaL_checkstring(L,1);
+	const char*varName=luaL_checkstring(L,2);
 	tensor data =readMat(fileName,varName);
 	int entries=totalEntries(data);
 	int*currKey=(int*)malloc(data.rank*sizeof(int));
@@ -163,7 +163,7 @@ static int lua_readMatio(lua_State*L){
 }
 
 static const struct luaL_Reg matio_funcs[] = {
-    {"readMatio", lua_readMatio},
+    {"load", lua_readMatio},
     {NULL, NULL} 
 };
 int luaopen_matioLua(lua_State *L) {
