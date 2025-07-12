@@ -169,8 +169,6 @@ static const struct luaL_Reg matio_funcs[] = {
 int luaopen_matioLua(lua_State *L) {
     luaL_newlib(L, matio_funcs);
 
-    lua_setfield(L, -2, "text");
-
     return 1;
 }
 
