@@ -84,7 +84,7 @@ int specifiedMatFile(char*fileName){
 	}
 	return 0;
 }
-int fileExists(char* fileName){
+int fileExists(const char* fileName){
 	FILE*sFile=fopen(fileName,"r");
 	int exists=0;
 	if(sFile!=NULL){
@@ -94,7 +94,6 @@ int fileExists(char* fileName){
 	return exists;
 }
 void writeMAT(char*variableName,char*matName,double*matrix,size_t*size,int dimension){
-	printf("d%d\n",dimension);
 	matvar_t*matvar=Mat_VarCreate(variableName,MAT_C_DOUBLE,MAT_T_DOUBLE,dimension,size,matrix,MAT_FT_DEFAULT);
 	mat_t*matfp;
 	if(fileExists(matName)){
@@ -122,15 +121,38 @@ tensor readMat(const char*fileName,const char*varName){
 	data.dims=(size_t*)malloc(sizeof(size_t)*matvar->rank);
 	memcpy(data.dims,matvar->dims,data.rank*sizeof(size_t));
 	entries=totalEntries(data);
+	data.data=(double*)malloc(sizeof(double)*entries);
 	memcpy(data.data,matvar->data,entries*sizeof(double));
 	Mat_VarFree(matvar);
 	Mat_Close(matfp);
 	return data;
 }
-static int lua_readMatio(lua_State*L){
-	const char*fileName=luaL_checkstring(L,1);
-	const char*varName=luaL_checkstring(L,2);
-	tensor data =readMat(fileName,varName);
+void stack_dump(lua_State *L) {
+    int top = lua_gettop(L);
+    printf("--- Stack Dump (top: %d) ---\n", top);
+    for (int i = 1; i <= top; i++) {
+        int t = lua_type(L, i);
+        printf("%d: %s ", i, lua_typename(L, t));
+        switch (t) {
+            case LUA_TSTRING:
+                printf("'%s'", lua_tostring(L, i));
+                break;
+            case LUA_TBOOLEAN:
+                printf(lua_toboolean(L, i) ? "true" : "false");
+                break;
+            case LUA_TNUMBER:
+                printf("%g", lua_tonumber(L, i));
+                break;
+            default:
+                printf("%p", lua_topointer(L, i));
+                break;
+        }
+        printf("\n");
+    }
+    printf("---------------------------\n");
+}
+
+void appendTensor(lua_State*L,tensor data){
 	int entries=totalEntries(data);
 	int*currKey=(int*)malloc(data.rank*sizeof(int));
 	for(int i=0;i<data.rank;i++){
@@ -143,22 +165,31 @@ static int lua_readMatio(lua_State*L){
 		lua_pushnumber(L,currKey[0]);
 		lua_pushnumber(L,data.data[i]);
 		lua_settable(L,-3);
-		lua_pop(L,2);
 		currKey[0]++;
-		for(int j=0;j<numFrontiers(i,data);j++){
-			lua_settable(L,-3);
-			lua_pop(L,2);
-			currKey[j+1]++;
-			currKey[j]=1;
-		}
-		for(int j=0;j<numFrontiers(i,data);j++){
-			lua_pushnumber(L,currKey[j+1]);
-			lua_newtable(L);
+		if(i+1<entries){
+			for(int j=0;j<numFrontiers(i,data);j++){
+				lua_settable(L,-3);
+				currKey[j+1]++;
+				currKey[j]=1;
+			}
+			for(int j=0;j<numFrontiers(i,data);j++){
+				lua_pushnumber(L,currKey[j+1]);
+				lua_newtable(L);
+			}
 		}
 	}
-	lua_pop(L,data.rank-1);
-	freeTensor(data);
 	free(currKey);
+	lua_pop(L,2*data.rank-2);
+}
+static int lua_readMatio(lua_State*L){
+	const char*fileName=luaL_checkstring(L,1);
+	const char*varName=luaL_checkstring(L,2);
+	if(!fileExists(fileName)){
+		fprintf(stderr,"file does not exists");
+	}
+	tensor data =readMat(fileName,varName);
+	appendTensor(L,data);
+	freeTensor(data);
 	return 1;
 }
 
