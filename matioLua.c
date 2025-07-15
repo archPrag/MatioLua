@@ -74,7 +74,7 @@ void dispTensor(tensor data){
 	}
 	printf("\ndata:");
 	int entries=totalEntries(data);
-	for(int i=0;i<data.dims[0];i++){
+	for(int i=0;i<(int)data.dims[0];i++){
 		printf("%lf ",data.data[i]);
 	}
 	printf("...\n");
@@ -125,6 +125,33 @@ tensor permuteIndices(tensor x){
 	free(divisors);
 	return y;
 }
+tensor permuteOnlyIndices(tensor x){
+	tensor y;
+	int entries;
+	int newIndex;
+	int oldIndex;
+	int*indexPermute;
+	int*divisors;
+	int*multiplier;
+	y.rank=x.rank;
+	indexPermute=(int*)malloc(y.rank*sizeof(int));
+	y.dims=(size_t*)malloc(y.rank*sizeof(size_t));
+	for(int i=0;i<y.rank/2;i++){
+		indexPermute[2*i]=2*i+1;
+		indexPermute[2*i+1]=2*i;
+	}
+	if(y.rank%2==1){
+		indexPermute[y.rank-1]=y.rank-1;
+	}
+	for(int i=0;i<y.rank;i++){
+		y.dims[indexPermute[i]]=x.dims[i];
+	}
+	entries=totalEntries(x);
+	y.data=(double*)malloc(entries*sizeof(double));
+	memcpy(y.data,x.data,sizeof(double)*entries);
+	free(indexPermute);
+	return y;
+}
 tensor getLuaTensor(lua_State*L,int index){
 	tensor tensorData;
 	int entries;
@@ -169,7 +196,7 @@ tensor getLuaTensor(lua_State*L,int index){
 		currInd[0]++;
 		for(int j=0;j<numFrontiersRaw(i,tensorData.rank,tensorData.dims);j++){
 			currInd[j+1]++;
-			lua_rawgeti(L,-1,i%currInd[j+1]+1);
+			lua_rawgeti(L,-1,currInd[j+1]);
 		}
 		lua_rawgeti(L,-1,currInd[0]);
 	}
@@ -232,8 +259,6 @@ void writeMAT(const char*fileName,const char*variableName,tensor data){
 }
 
 
-
-
 tensor readMat(const char*fileName,const char*varName){
 	mat_t*matfp=Mat_Open(fileName,MAT_ACC_RDONLY);
 	matvar_t* matvar=Mat_VarRead(matfp,varName);
@@ -294,10 +319,10 @@ static int lua_writeMatio(lua_State*L){
 	tensor x;
 	const char*varName=luaL_checkstring(L,3);
 	if(lua_istable(L,2)){
-		data=getLuaTensor(L,2);
-	}
-	else{
-		data=getLuaNumber(L,2);
+		x=getLuaTensor(L,2);
+		data=permuteOnlyIndices(x);
+		//dispTensor(data);
+		freeTensor(x);
 	}
 	writeMAT(fileName,varName,data);
 	freeTensor(data);
@@ -333,7 +358,3 @@ int luaopen_matioLua(lua_State *L) {
 
     return 1;
 }
-
-
-
-
