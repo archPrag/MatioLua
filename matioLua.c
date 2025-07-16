@@ -125,31 +125,19 @@ tensor permuteIndices(tensor x){
 	free(divisors);
 	return y;
 }
-tensor permuteOnlyIndices(tensor x){
+tensor invertIndices(tensor x){
 	tensor y;
 	int entries;
 	int newIndex;
 	int oldIndex;
-	int*indexPermute;
-	int*divisors;
-	int*multiplier;
 	y.rank=x.rank;
-	indexPermute=(int*)malloc(y.rank*sizeof(int));
 	y.dims=(size_t*)malloc(y.rank*sizeof(size_t));
-	for(int i=0;i<y.rank/2;i++){
-		indexPermute[2*i]=2*i+1;
-		indexPermute[2*i+1]=2*i;
-	}
-	if(y.rank%2==1){
-		indexPermute[y.rank-1]=y.rank-1;
-	}
 	for(int i=0;i<y.rank;i++){
-		y.dims[indexPermute[i]]=x.dims[i];
+		y.dims[y.rank-1-i]=x.dims[i];
 	}
 	entries=totalEntries(x);
 	y.data=(double*)malloc(entries*sizeof(double));
 	memcpy(y.data,x.data,sizeof(double)*entries);
-	free(indexPermute);
 	return y;
 }
 tensor getLuaTensor(lua_State*L,int index){
@@ -189,16 +177,15 @@ tensor getLuaTensor(lua_State*L,int index){
 			lua_pop(L,1);
 			currInd[j]=0;
 		}
-
 		if(i+1==entries){
 			break;
 		}
-		currInd[0]++;
-		for(int j=0;j<numFrontiersRaw(i,tensorData.rank,tensorData.dims);j++){
-			currInd[j+1]++;
-			lua_rawgeti(L,-1,currInd[j+1]);
+		for(int j=0;j<numFrontiersRaw(i,tensorData.rank,tensorData.dims)+1;j++){
+			currInd[j]++;
 		}
-		lua_rawgeti(L,-1,currInd[0]);
+		for(int j=numFrontiersRaw(i,tensorData.rank,tensorData.dims);j>=0;j--){
+			lua_rawgeti(L,-1,currInd[j]);
+		}
 	}
 
 	lua_pop(L,1);
@@ -250,8 +237,9 @@ void writeMAT(const char*fileName,const char*variableName,tensor data){
 	else{
 		matfp=Mat_CreateVer(fileName,NULL,MAT_FT_DEFAULT);
 	}
-	if(varExists(matfp,fileName)){
+	if(varExists(matfp,variableName)){
 		Mat_VarDelete(matfp,variableName);
+		printf("deleted");
 	}
 	Mat_VarWrite(matfp,matvar,MAT_COMPRESSION_ZLIB);
 	Mat_Close(matfp);
@@ -320,8 +308,7 @@ static int lua_writeMatio(lua_State*L){
 	const char*varName=luaL_checkstring(L,3);
 	if(lua_istable(L,2)){
 		x=getLuaTensor(L,2);
-		data=permuteOnlyIndices(x);
-		//dispTensor(data);
+		data=invertIndices(x);
 		freeTensor(x);
 	}
 	writeMAT(fileName,varName,data);
